@@ -271,7 +271,7 @@ class PinboardClient:
 
         if tags is not None:
             old_tags = bookmark.tags
-            bookmark.tags = ' '.join(tags)
+            bookmark.tags = list(tags)
             updates.append(f"tags: '{old_tags}' -> '{bookmark.tags}'")
 
         if private is not None:
@@ -281,7 +281,7 @@ class PinboardClient:
 
         if toread is not None:
             old_toread = bookmark.toread
-            bookmark.toread = 'yes' if toread else 'no'
+            bookmark.toread = bool(toread)
             updates.append(f"toread: '{old_toread}' -> '{bookmark.toread}'")
 
         if not updates:
@@ -293,7 +293,9 @@ class PinboardClient:
         logger.info(f'updating bookmark {url}: {", ".join(updates)}')
 
         self._rate_limit()
-        bookmark.save()
+        # posts/add without dt defaults the creation time to now, so pass the
+        # original time back explicitly to avoid resetting it
+        bookmark.save(update_time=True)
 
         logger.info(f'successfully updated bookmark: {url}')
         return Bookmark.from_api(bookmark), updates
@@ -314,7 +316,11 @@ class PinboardClient:
         self._rate_limit()
         tags_raw = client.tags.get()
 
-        tags = format_tags_response(tags_raw)
+        # the pinboard library returns Tag objects, not a dict
+        if isinstance(tags_raw, dict):
+            tags = format_tags_response(tags_raw)
+        else:
+            tags = format_tags_response({t.name: t.count for t in tags_raw})
         logger.info(f'retrieved {len(tags)} tags')
         return tags
 
